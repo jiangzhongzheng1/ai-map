@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AI 到底是怎么运作的</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #080810;
+  --surface: #0f0f1a;
+  --border: #1a1a2e;
+  --text: #ddddf0;
+  --muted: #5a5a78;
+  --dim: #2a2a44;
+
+  --amber: #f0a030;
+  --blue: #4a90e8;
+  --green: #3ecf7a;
+  --purple: #a07af0;
+  --orange: #f07040;
+  --pink: #e060b0;
+  --teal: #30c0b0;
+  --red: #e04040;
+  --gold: #d4af37;
+
+  --mono: 'IBM Plex Mono', monospace;
+  --serif: 'Cormorant Garamond', Georgia, serif;
+  --sans: 'Noto Sans SC', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-weight: 300;
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+/* ─── PROGRESS BAR ─── */
+#progress-bar {
+  position: fixed; top: 0; left: 0; height: 2px;
+  background: var(--amber); width: 0%; z-index: 999;
+  transition: width 0.1s;
+}
+
+/* ─── NAV DOTS ─── */
+#nav-dots {
+  position: fixed; right: 12px; top: 50%;
+  transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 7px;
+  z-index: 998;
+}
+.nav-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--dim); cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+.nav-dot.active { background: var(--amber); transform: scale(1.6); }
+
+/* ─── COVER ─── */
+#cover {
+  min-height: 100svh;
+  display: flex; flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 24px 48px;
+  position: relative;
+  overflow: hidden;
+}
+.cover-grid {
+  position: absolute; inset: 0; opacity: 0.06;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.cover-glow {
+  position: absolute; top: -100px; right: -100px;
+  width: 320px; height: 320px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(240,160,48,0.12), transparent 70%);
+  animation: pulse 4s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:0.5;transform:scale(1)} 50%{opacity:1;transform:scale(1.1)} }
+
+.cover-eyebrow {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 3px; color: var(--amber);
+  text-transform: uppercase; margin-bottom: 16px;
+  opacity: 0; animation: rise 0.8s 0.2s forwards;
+}
+#cover h1 {
+  font-family: var(--serif); font-size: 42px;
+  font-weight: 700; line-height: 1.1;
+  margin-bottom: 20px;
+  opacity: 0; animation: rise 0.8s 0.4s forwards;
+}
+#cover h1 em { font-style: italic; color: var(--amber); }
+.cover-desc {
+  font-size: 14px; color: var(--muted); line-height: 1.8;
+  margin-bottom: 32px;
+  opacity: 0; animation: rise 0.8s 0.6s forwards;
+}
+.cover-start {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 12px;
+  color: var(--amber); border: 1px solid var(--amber);
+  padding: 12px 20px; border-radius: 2px;
+  cursor: pointer; text-decoration: none;
+  opacity: 0; animation: rise 0.8s 0.8s forwards;
+}
+
+/* ─── CHAPTER BASE ─── */
+.chapter {
+  padding: 60px 24px 48px;
+  position: relative;
+  border-top: 1px solid var(--border);
+}
+.ch-num {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 3px; color: var(--muted);
+  margin-bottom: 4px;
+}
+.ch-label {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 2px; text-transform: uppercase;
+  margin-bottom: 12px;
+}
+h2 {
+  font-family: var(--serif); font-size: 30px;
+  font-weight: 700; line-height: 1.2;
+  margin-bottom: 20px;
+}
+h2 em { font-style: italic; }
+.body-text {
+  font-size: 14.5px; line-height: 1.85;
+  color: #c8c8e0; margin-bottom: 16px;
+}
+.body-text strong { color: var(--text); font-weight: 500; }
+.body-text em { color: var(--amber); font-style: normal; }
+
+/* ─── HIGHLIGHT BOX ─── */
+.aha {
+  margin: 24px 0;
+  padding: 18px 16px;
+  border-radius: 4px;
+  border-left: 3px solid var(--ch-color, var(--amber));
+  background: rgba(255,255,255,0.03);
+  font-size: 14px; line-height: 1.8;
+  color: var(--text);
+}
+.aha-label {
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: var(--ch-color, var(--amber));
+  margin-bottom: 8px; opacity: 0.8;
+}
+
+/* ─── CODE BLOCK ─── */
+.code-block {
+  background: #0a0a16;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.7;
+  overflow-x: auto;
+  margin: 20px 0;
+  color: #a0a0c0;
+  white-space: pre;
+}
+.code-block .key { color: #a07af0; }
+.code-block .str { color: #3ecf7a; }
+.code-block .num { color: #f0a030; }
+.code-block .comment { color: #404060; }
+
+/* ─── SECTION DIVIDER ─── */
+.divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 32px 0;
+}
+.divider-line { flex: 1; height: 1px; background: var(--border); }
+.divider-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--dim); }
+
+/* ─── INTERACTIVE DEMOS ─── */
+
+/* Flow animation */
+.flow-demo {
+  margin: 24px 0;
+  background: #0a0a16;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 16px;
+}
+.flow-nodes {
+  display: flex; align-items: center;
+  gap: 0; margin-bottom: 16px;
+  overflow-x: auto; padding-bottom: 4px;
+}
+.flow-node {
+  flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 6px;
+}
+.flow-icon {
+  width: 44px; height: 44px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  transition: all 0.3s;
+}
+.flow-node-label {
+  font-family: var(--mono); font-size: 9px;
+  color: var(--muted); text-align: center;
+  line-height: 1.3; max-width: 54px;
+}
+.flow-arrow {
+  flex-shrink: 0; width: 24px; text-align: center;
+  font-size: 14px; color: var(--dim);
+  transition: color 0.3s;
+  align-self: center; margin-bottom: 22px;
+}
+.flow-node.active .flow-icon {
+  border-color: var(--amber);
+  background: rgba(240,160,48,0.1);
+  box-shadow: 0 0 12px rgba(240,160,48,0.2);
+}
+.flow-arrow.active { color: var(--amber); }
+.flow-desc {
+  font-size: 12.5px; color: var(--muted); line-height: 1.6;
+  min-height: 36px; text-align: center;
+}
+.flow-btn {
+  margin-top: 14px;
+  width: 100%; padding: 10px;
+  background: transparent;
+  border: 1px solid var(--amber);
+  color: var(--amber);
+  font-family: var(--mono); font-size: 11px;
+  border-radius: 3px; cursor: pointer;
+}
+
+/* Token counter */
+.token-demo {
+  margin: 24px 0;
+  background: #0a0a16;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 16px;
+}
+.token-input {
+  width: 100%; background: transparent;
+  border: 1px solid var(--dim);
+  color: var(--text); font-family: var(--sans);
+  font-size: 14px; padding: 12px;
+  border-radius: 4px; resize: none;
+  outline: none; line-height: 1.6;
+  min-height: 80px;
+}
+.token-input:focus { border-color: var(--blue); }
+.token-stats {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px; margin-top: 14px;
+}
+.token-stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px; padding: 10px 8px;
+  text-align: center;
+}
+.token-stat-num {
+  font-family: var(--mono); font-size: 18px;
+  font-weight: 500; color: var(--blue);
+}
+.token-stat-label {
+  font-size: 10px; color: var(--muted);
+  margin-top: 2px; font-family: var(--mono);
+}
+.token-visual {
+  margin-top: 14px;
+  display: flex; flex-wrap: wrap; gap: 4px;
+  min-height: 30px;
+}
+.token-chip {
+  font-family: var(--mono); font-size: 11px;
+  padding: 2px 7px; border-radius: 3px;
+  background: rgba(74,144,232,0.15);
+  border: 1px solid rgba(74,144,232,0.3);
+  color: var(--blue);
+}
+
+/* Memory demo */
+.memory-demo {
+  margin: 24px 0;
+  background: #0a0a16;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 16px;
+}
+.mem-timeline {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-bottom: 14px;
+}
+.mem-msg {
+  display: flex; gap: 8px; align-items: flex-start;
+}
+.mem-role {
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 1px; padding: 3px 7px;
+  border-radius: 2px; flex-shrink: 0; margin-top: 2px;
+}
+.mem-role.user { background: rgba(240,160,48,0.15); color: var(--amber); }
+.mem-role.ai { background: rgba(74,144,232,0.15); color: var(--blue); }
+.mem-content {
+  font-size: 12.5px; color: #a0a0c0; line-height: 1.5;
+}
+.mem-packet {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(62,207,122,0.05);
+  border: 1px solid rgba(62,207,122,0.2);
+  border-radius: 6px;
+}
+.mem-packet-label {
+  font-family: var(--mono); font-size: 9px;
+  color: var(--green); letter-spacing: 2px; margin-bottom: 8px;
+}
+.mem-packet-size {
+  font-family: var(--mono); font-size: 22px;
+  font-weight: 500; color: var(--green);
+}
+.mem-packet-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.mem-add-btn {
+  margin-top: 12px;
+  width: 100%; padding: 10px;
+  background: transparent;
+  border: 1px solid var(--green);
+  color: var(--green);
+  font-family: var(--mono); font-size: 11px;
+  border-radius: 3px; cursor: pointer;
+}
+.mem-reset-btn {
+  margin-top: 8px;
+  width: 100%; padding: 8px;
+  background: transparent;
+  border: 1px solid var(--dim);
+  color: var(--muted);
+  font-family: var(--mono); font-size: 10px;
+  border-radius: 3px; cursor: pointer;
+}
+
+/* System prompt revealer */
+.sysprompt-demo {
+  margin: 24px 0;
+  background: #0a0a16;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.sysprompt-tabs {
+  display: flex; border-bottom: 1px solid var(--border);
+}
+.sysprompt-tab {
+  flex: 1; padding: 10px 8px;
+  font-family: var(--mono); font-size: 10px;
+  text-align: center; cursor: pointer;
+  color: var(--muted); border: none;
+  background: transparent;
+  transition: all 0.2s;
+  letter-spacing: 1px;
+}
+.sysprompt-tab.active {
+  color: var(--purple); background: rgba(160,122,240,0.08);
+  border-bottom: 2px solid var(--purple);
+}
+.sysprompt-content {
+  padding: 16px;
+  font-size: 12.5px; line-height: 1.7;
+  color: #a0a0c0;
+}
+.sysprompt-content.hidden { display: none; }
+.sysprompt-highlight { color: var(--purple); }
+
+/* Business model map */
+.biz-map {
+  margin: 24px 0;
+}
+.biz-layer {
+  margin-bottom: 16px;
+}
+.biz-layer-label {
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 2px; color: var(--muted);
+  margin-bottom: 8px; text-transform: uppercase;
+}
+.biz-nodes {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.biz-node {
+  flex: 1; min-width: 80px;
+  padding: 12px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px; cursor: pointer;
+  transition: all 0.2s; text-align: center;
+}
+.biz-node:active { transform: scale(0.97); }
+.biz-node.active {
+  border-color: var(--node-color);
+  background: rgba(255,255,255,0.04);
+}
+.biz-node-icon { font-size: 18px; margin-bottom: 4px; }
+.biz-node-name {
+  font-size: 11.5px; font-weight: 500; margin-bottom: 2px;
+}
+.biz-node-tag {
+  font-family: var(--mono); font-size: 9px;
+  color: var(--muted);
+}
+.biz-detail {
+  margin-top: 12px;
+  padding: 14px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px; line-height: 1.75;
+  color: #b0b0d0;
+  display: none;
+}
+.biz-detail.show { display: block; }
+.biz-detail strong { font-weight: 500; }
+
+/* Agent stepper */
+.agent-demo {
+  margin: 24px 0;
+  background: #0a0a16;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 16px;
+}
+.agent-task {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--orange); padding: 10px 12px;
+  border: 1px solid rgba(240,112,64,0.3);
+  background: rgba(240,112,64,0.05);
+  border-radius: 4px; margin-bottom: 16px;
+}
+.agent-steps { display: flex; flex-direction: column; gap: 0; }
+.agent-step {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 10px 0; opacity: 0.2;
+  transition: opacity 0.4s, border-color 0.4s;
+  border-left: 2px solid var(--border);
+  padding-left: 14px; margin-left: 10px;
+}
+.agent-step.done { opacity: 1; border-left-color: var(--orange); }
+.agent-step.active { opacity: 1; border-left-color: var(--orange); }
+.agent-step-icon {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--surface); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; flex-shrink: 0; margin-left: -25px;
+  transition: all 0.3s;
+}
+.agent-step.active .agent-step-icon,
+.agent-step.done .agent-step-icon {
+  background: rgba(240,112,64,0.15);
+  border-color: var(--orange);
+}
+.agent-step-content { flex: 1; }
+.agent-step-name {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--orange); letter-spacing: 1px; margin-bottom: 3px;
+}
+.agent-step-desc {
+  font-size: 12.5px; color: #909090; line-height: 1.5;
+}
+.agent-step-output {
+  margin-top: 6px;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--green); background: rgba(62,207,122,0.06);
+  padding: 6px 8px; border-radius: 3px;
+  display: none;
+}
+.agent-step.done .agent-step-output { display: block; }
+.agent-btn {
+  margin-top: 16px;
+  width: 100%; padding: 11px;
+  background: rgba(240,112,64,0.1);
+  border: 1px solid var(--orange);
+  color: var(--orange);
+  font-family: var(--mono); font-size: 11px;
+  border-radius: 3px; cursor: pointer;
+}
+
+/* Pricing tiers */
+.pricing-tiers {
+  display: flex; flex-direction: column; gap: 10px;
+  margin: 24px 0;
+}
+.tier {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.tier.active { border-color: var(--tier-color); }
+.tier-header {
+  display: flex; justify-content: space-between; align-items: center;
+}
+.tier-name {
+  font-family: var(--mono); font-size: 13px;
+  font-weight: 500;
+}
+.tier-price {
+  font-family: var(--mono); font-size: 12px;
+  color: var(--muted);
+}
+.tier-body {
+  margin-top: 10px;
+  font-size: 13px; line-height: 1.7; color: #a0a0c0;
+  display: none;
+}
+.tier.active .tier-body { display: block; }
+.tier-why {
+  margin-top: 8px; padding: 8px 10px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 4px;
+  font-size: 12px; color: var(--muted);
+  font-family: var(--mono);
+}
+
+/* DIY roadmap */
+.roadmap {
+  margin: 24px 0;
+  display: flex; flex-direction: column; gap: 0;
+}
+.road-step {
+  display: flex; gap: 16px; padding-bottom: 24px;
+  position: relative;
+}
+.road-step::before {
+  content: ''; position: absolute;
+  left: 18px; top: 36px; bottom: 0;
+  width: 1px; background: var(--border);
+}
+.road-step:last-child::before { display: none; }
+.road-num {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid var(--teal);
+  color: var(--teal); font-family: var(--mono); font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; background: rgba(48,192,176,0.08);
+}
+.road-content { flex: 1; padding-top: 6px; }
+.road-title {
+  font-size: 15px; font-weight: 500; margin-bottom: 6px;
+}
+.road-desc {
+  font-size: 13px; color: var(--muted); line-height: 1.7;
+}
+.road-time {
+  display: inline-block;
+  font-family: var(--mono); font-size: 9px;
+  color: var(--teal); letter-spacing: 1px;
+  border: 1px solid rgba(48,192,176,0.3);
+  padding: 2px 7px; border-radius: 2px; margin-top: 6px;
+}
+
+/* ─── ANIMATIONS ─── */
+@keyframes rise {
+  from { opacity:0; transform: translateY(16px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+.scroll-reveal {
+  opacity: 0; transform: translateY(20px);
+  transition: opacity 0.6s, transform 0.6s;
+}
+.scroll-reveal.visible { opacity: 1; transform: none; }
+
+/* ─── UTILITY ─── */
+.spacer { height: 8px; }
+.tag-inline {
+  display: inline-block;
+  font-family: var(--mono); font-size: 10px;
+  padding: 1px 7px; border-radius: 2px;
+  border: 1px solid currentColor; margin: 0 2px;
+  vertical-align: middle;
+}
+
+/* ─── FOOTER ─── */
+footer {
+  padding: 60px 24px 80px;
+  text-align: center;
+  border-top: 1px solid var(--border);
+}
+footer p {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--muted); line-height: 1.8;
+}
+footer .big {
+  font-family: var(--serif); font-size: 32px;
+  font-weight: 700; color: var(--amber);
+  margin-bottom: 16px;
+}
+</style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+<div id="nav-dots"></div>
+
+<!-- ═══════════════════════ COVER ═══════════════════════ -->
+<section id="cover">
+  <div class="cover-grid"></div>
+  <div class="cover-glow"></div>
+  <div class="cover-eyebrow">完全指南 · 2025</div>
+  <h1>AI 到底是<br><em>怎么运作的</em></h1>
+  <p class="cover-desc">从"你按下发送的那一刻"开始，一路拆解到模型、Token、API、Agent——让只用过ChatGPT的人，真正搞懂背后在发生什么。</p>
+  <a href="#ch0" class="cover-start">开始阅读 →</a>
+</section>
+
+<!-- ═══════════════════════ CH0：你按下发送 ═══════════════════════ -->
+<section class="chapter" id="ch0" style="--ch-color: var(--amber)">
+  <div class="scroll-reveal">
+    <div class="ch-num">00</div>
+    <div class="ch-label" style="color:var(--amber)">你按下发送的那一刻</div>
+    <h2>实际上<em>发生了什么</em></h2>
+    <p class="body-text">你以为你在"和AI说话"。实际上，你触发了一次网络请求——就像打开网页一样，只不过发送的是文字，返回的也是文字。</p>
+    <p class="body-text">整个过程，没有魔法，只有<strong>数据在网络上传输，进入一个数学函数，输出另一段数据</strong>。</p>
+
+    <div class="flow-demo">
+      <div class="flow-nodes" id="flow-nodes">
+        <div class="flow-node" data-i="0"><div class="flow-icon">📱</div><div class="flow-node-label">你的手机</div></div>
+        <div class="flow-arrow" data-i="0">→</div>
+        <div class="flow-node" data-i="1"><div class="flow-icon">📦</div><div class="flow-node-label">HTTP 请求</div></div>
+        <div class="flow-arrow" data-i="1">→</div>
+        <div class="flow-node" data-i="2"><div class="flow-icon">🌐</div><div class="flow-node-label">Anthropic 服务器</div></div>
+        <div class="flow-arrow" data-i="2">→</div>
+        <div class="flow-node" data-i="3"><div class="flow-icon">🧠</div><div class="flow-node-label">模型运算</div></div>
+        <div class="flow-arrow" data-i="3">→</div>
+        <div class="flow-node" data-i="4"><div class="flow-icon">✨</div><div class="flow-node-label">逐字返回</div></div>
+      </div>
+      <div class="flow-desc" id="flow-desc">点击下方按钮，一步步看发生了什么</div>
+      <button class="flow-btn" id="flow-btn" onclick="stepFlow()">▶ 开始</button>
+    </div>
+
+    <div class="aha">
+      <div class="aha-label">关键事实</div>
+      AI没有在"思考"——它在对你发来的文字做一次巨大的数学运算，预测接下来该输出什么词。每次都是全新的运算，从零开始。
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ CH1：模型的本质 ═══════════════════════ -->
+<section class="chapter" id="ch1" style="--ch-color: var(--amber)">
+  <div class="scroll-reveal">
+    <div class="ch-num">01</div>
+    <div class="ch-label" style="color:var(--amber)">大模型 / LLM</div>
+    <h2>所谓"AI"<br><em>本质是什么</em></h2>
+    <p class="body-text">LLM（Large Language Model，大型语言模型）是一个<strong>极其巨大的数学函数</strong>。给它输入一段文字，它输出下一段文字。</p>
+    <p class="body-text">它"懂"语言、"会"推理、"有"知识，是因为训练时看过数万亿字的人类文字——书、网页、代码、对话——然后调整内部数十亿个数字参数，直到能预测"什么词应该接在什么词后面"。</p>
+
+    <div class="aha">
+      <div class="aha-label">颠覆认知</div>
+      模型本质上是一个<strong>超复杂的"下一个词预测机器"</strong>。它没有意识，没有情感，没有目标。它只是在做一件事：给定输入，预测最合理的续写。只不过这件事被做到了极致。
+    </div>
+
+    <p class="body-text">训练一次大模型需要<strong>几个月时间、数千张GPU、数亿美元</strong>。训练完成后，所有的"知识"都被压缩进了那些数字参数里，形成一个大文件——就是"模型权重"。</p>
+
+    <div class="code-block"><span class="comment">// 极度简化的理解</span>
+<span class="key">function</span> LLM(input_text) {
+  <span class="comment">// 内部有几百亿个数字参数</span>
+  <span class="comment">// 训练了几个月</span>
+  <span class="comment">// 看过数万亿字的人类文字</span>
+  <span class="key">return</span> most_likely_continuation(input_text);
+}</div>
+
+    <p class="body-text">模型有名字——<strong>Claude Sonnet</strong>、<strong>GPT-4o</strong>、<strong>Gemini 1.5 Pro</strong>、<strong>LLaMA 3</strong>——不同的模型是不同公司训练的，能力、风格、价格都不同。这和"操作系统"的关系很像：iOS和Android都是手机系统，但内部完全不同。</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════ CH2：Token ═══════════════════════ -->
+<section class="chapter" id="ch2" style="--ch-color: var(--blue)">
+  <div class="scroll-reveal">
+    <div class="ch-num">02</div>
+    <div class="ch-label" style="color:var(--blue)">Token</div>
+    <h2>AI 怎么<em>数钱的</em></h2>
+    <p class="body-text">AI不按字、不按词处理文字，而是按 <strong>Token</strong>——一种介于字符和单词之间的单位。英文大约每4个字符是1个Token；中文大约每1-2个字是1个Token。</p>
+    <p class="body-text">Token是AI世界里的<strong>"计量单位"</strong>——所有费用、所有限制，都以Token来衡量。</p>
+
+    <div class="token-demo">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--blue);letter-spacing:2px;margin-bottom:10px">TOKEN 计算器</div>
+      <textarea class="token-input" id="token-input" placeholder="随便输入一些文字，看看它有多少Token…" oninput="updateTokens()"></textarea>
+      <div class="token-stats">
+        <div class="token-stat">
+          <div class="token-stat-num" id="tok-count">0</div>
+          <div class="token-stat-label">Tokens</div>
+        </div>
+        <div class="token-stat">
+          <div class="token-stat-num" id="tok-cost" style="color:var(--amber)">$0.00</div>
+          <div class="token-stat-label">Sonnet费用</div>
+        </div>
+        <div class="token-stat">
+          <div class="token-stat-num" id="tok-ctx" style="color:var(--green)">0%</div>
+          <div class="token-stat-label">占上下文</div>
+        </div>
+      </div>
+      <div class="token-visual" id="token-visual"></div>
+    </div>
+
+    <div class="aha">
+      <div class="aha-label">为什么这重要</div>
+      API按Token计费。一本小说≈10万Token，一次长对话≈1-5万Token。<strong>你的问题越长、历史越多，每次请求花的钱越多。</strong>这就是为什么有上下文窗口限制，这就是为什么有套餐分级。
+    </div>
+
+    <div class="code-block"><span class="comment">// Claude Sonnet 定价（参考）</span>
+输入：<span class="num">$3</span> / 百万 tokens
+输出：<span class="num">$15</span> / 百万 tokens
+
+<span class="comment">// 一次普通对话（问+答 ≈ 2000 tokens）</span>
+费用 ≈ <span class="num">$0.0001</span>  <span class="comment">// 不到一分钱</span>
+
+<span class="comment">// 但如果是长文档分析（≈ 100,000 tokens）</span>
+费用 ≈ <span class="num">$0.3</span>  <span class="comment">// 这就明显了</span></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ CH3：API ═══════════════════════ -->
+<section class="chapter" id="ch3" style="--ch-color: var(--green)">
+  <div class="scroll-reveal">
+    <div class="ch-num">03</div>
+    <div class="ch-label" style="color:var(--green)">API</div>
+    <h2>程序员的<em>电源插座</em></h2>
+    <p class="body-text">API（Application Programming Interface）是模型对外开放的<strong>标准化接口</strong>——你写代码，把消息发进去，回答出来。不需要自己训练模型，直接调用别人已经训练好的。</p>
+    <p class="body-text">用API就像用电——你不需要建发电厂，只需要知道插座怎么用。<strong>发电厂（模型）是Anthropic/OpenAI建的，插座（API）他们开放给你，你按用电量（Token）付费。</strong></p>
+
+    <p class="body-text">一次最简单的API调用长这样：</p>
+    <div class="code-block"><span class="comment">// 向Claude发一条消息</span>
+<span class="key">fetch</span>(<span class="str">"https://api.anthropic.com/v1/messages"</span>, {
+  method: <span class="str">"POST"</span>,
+  headers: {
+    <span class="str">"x-api-key"</span>: <span class="str">"你的密钥"</span>,
+    <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span>
+  },
+  body: JSON.stringify({
+    model: <span class="str">"claude-sonnet-4-5"</span>,
+    max_tokens: <span class="num">1024</span>,
+    messages: [{
+      role: <span class="str">"user"</span>,
+      content: <span class="str">"今天天气怎么样？"</span>
+    }]
+  })
+})</div>
+
+    <div class="aha">
+      <div class="aha-label">API vs 网页产品 的区别</div>
+      用网页版（claude.ai）：有界面、有记忆感、有工具——但你控制不了任何细节。<br><br>
+      用API：<strong>裸模型</strong>，没有记忆、没有系统指令、没有工具——但你完全控制一切，可以自己加。这是开发者选API的原因。
+    </div>
+
+    <p class="body-text">API不只给大公司用。任何人申请一个API Key（一般几分钟），就可以在自己的程序里调用世界最强的AI。这是<strong>个人开发者 / 独立产品</strong>的基础设施。</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════ CH4：AI没有记忆 ═══════════════════════ -->
+<section class="chapter" id="ch4" style="--ch-color: var(--green)">
+  <div class="scroll-reveal">
+    <div class="ch-num">04</div>
+    <div class="ch-label" style="color:var(--green)">上下文窗口</div>
+    <h2>AI <em>没有记忆</em><br>你每次都在发历史</h2>
+    <p class="body-text">这是理解AI系统最重要的一件事，也是最多人不知道的。</p>
+    <p class="body-text"><strong>AI没有持久记忆。</strong>它不记得上一条消息。每次请求对它来说都是全新的、独立的运算。</p>
+    <p class="body-text">那为什么聊天软件里AI"记得"之前说了什么？因为<em>每次发消息，系统都把完整的对话历史一起打包发给AI。</em></p>
+
+    <div class="memory-demo">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--green);letter-spacing:2px;margin-bottom:12px">模拟对话 — 看每次发送了什么</div>
+      <div class="mem-timeline" id="mem-timeline"></div>
+      <div class="mem-packet">
+        <div class="mem-packet-label">第 <span id="mem-turn">0</span> 轮请求实际发送的数据量</div>
+        <div class="mem-packet-size" id="mem-size">0 tokens</div>
+        <div class="mem-packet-sub" id="mem-sub">点击添加消息，看数据怎么增长</div>
+      </div>
+      <button class="mem-add-btn" onclick="addMemMsg()">+ 继续对话（添加一轮）</button>
+      <button class="mem-reset-btn" onclick="resetMem()">重置对话</button>
+    </div>
+
+    <div class="aha">
+      <div class="aha-label">这意味着什么</div>
+      <strong>对话越长，每次请求越贵。</strong>对话到第100轮，你的第101条消息会把前100条全部打包重发一遍。这就是上下文窗口（Context Window）——它有上限，超出就"失忆"，旧消息会被截断。<br><br>
+      免费版通常上下文更短，Pro版更长，Enterprise版可以更长——这不是故意限制，是<strong>成本所致</strong>。
+    </div>
+
+    <p class="body-text">上下文窗口的大小也决定了AI能处理多长的文档。Claude的上下文窗口目前高达<strong>20万Token</strong>——大约是一整本小说。这需要消耗大量算力。</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════ CH5：System Prompt ═══════════════════════ -->
+<section class="chapter" id="ch5" style="--ch-color: var(--purple)">
+  <div class="scroll-reveal">
+    <div class="ch-num">05</div>
+    <div class="ch-label" style="color:var(--purple)">System Prompt</div>
+    <h2>你看不到的<em>第一条消息</em></h2>
+    <p class="body-text">每次你打开claude.ai、ChatGPT或任何AI产品开始对话，在你输入第一个字之前，系统已经悄悄往对话里塞进了一段指令——这就是 <strong>System Prompt（系统提示词）</strong>。</p>
+    <p class="body-text">它告诉AI：你是谁、你能做什么、你不能做什么、你应该用什么语气——所有产品层面的"个性"，都来自这里。</p>
+
+    <div class="sysprompt-demo">
+      <div class="sysprompt-tabs">
+        <button class="sysprompt-tab active" onclick="switchTab(this,'sp-claudeai')">claude.ai</button>
+        <button class="sysprompt-tab" onclick="switchTab(this,'sp-custom')">你自己的产品</button>
+        <button class="sysprompt-tab" onclick="switchTab(this,'sp-bare')">裸API</button>
+      </div>
+      <div class="sysprompt-content" id="sp-claudeai">
+        <span class="sysprompt-highlight">System:</span> 你是Claude，由Anthropic创建的AI助手。你应该诚实、无害、有帮助。你有搜索网络、执行代码、分析文件等工具。用户正在使用claude.ai，界面支持Markdown渲染……<br><br>
+        <span style="color:var(--muted);font-size:12px">（实际长达数千字，你永远看不到完整版）</span>
+      </div>
+      <div class="sysprompt-content hidden" id="sp-custom">
+        <span class="sysprompt-highlight">System:</span> 你是"小慧"，XX公司的客服助手。只回答关于我们产品的问题。不要讨论竞争对手。用轻松友好的语气……<br><br>
+        <span style="color:var(--muted);font-size:12px">同一个Claude模型，装进不同System Prompt，就变成了完全不同的产品</span>
+      </div>
+      <div class="sysprompt-content hidden" id="sp-bare">
+        <span style="color:var(--muted)">（没有System Prompt）</span><br><br>
+        你直接接触到了原始模型。没有产品包装，没有限制，没有工具。Claude会展现训练时的"默认行为"，而不是任何产品的定制行为。
+      </div>
+    </div>
+
+    <div class="aha">
+      <div class="aha-label">为什么同一个模型在不同平台表现不同</div>
+      System Prompt决定了一切"性格"细节：语气、限制、工具、记忆方式。这也是为什么你可以用API做出和claude.ai完全不同感觉的产品——<strong>你只是换了一个System Prompt</strong>。
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ CH6：claude.ai做了什么 ═══════════════════════ -->
+<section class="chapter" id="ch6" style="--ch-color: var(--purple)">
+  <div class="scroll-reveal">
+    <div class="ch-num">06</div>
+    <div class="ch-label" style="color:var(--purple)">产品层</div>
+    <h2>claude.ai 在<em>裸API之上</em>做了什么</h2>
+    <p class="body-text">claude.ai不是"裸模型"。它是Anthropic自己用Claude API构建的产品——和你用API构建产品，是同一个原理。</p>
+    <p class="body-text">它在裸模型上叠加了很多层：</p>
+
+    <div class="aha" style="border-left-color:var(--purple)">
+      <div class="aha-label">产品包装层（你感知不到的部分）</div>
+      <strong>① 系统提示词</strong> — 几千字的指令，定义Claude的行为边界<br><br>
+      <strong>② 对话历史管理</strong> — 自动打包历史消息一起发送，超长时智能压缩<br><br>
+      <strong>③ 工具接入</strong> — 联网搜索、代码执行、文件解析、图像生成——这些不是模型自带的，是产品层接入的<br><br>
+      <strong>④ Artifacts渲染</strong> — 你看到的代码块、可运行的网页——产品层识别并渲染的<br><br>
+      <strong>⑤ Projects / Memory</strong> — 跨对话"记忆"，本质是把记录注入System Prompt<br><br>
+      <strong>⑥ 用户认证 / 限流</strong> — 知道你是谁，按套餐控制用量
+    </div>
+
+    <p class="body-text">所以"claude.ai的Claude"和"原始API的Claude"是<strong>同一个模型</strong>，但体验完全不同——因为包装层不同。这也意味着：任何人都可以用API构建一个类似claude.ai的产品，只是少了那些精心设计的包装。</p>
+
+    <div class="aha">
+      <div class="aha-label">算不算Agent？</div>
+      claude.ai有部分Agent特征——它能调工具、管理上下文、执行多步操作。但主循环仍然是"你发、它回"，不会自主持续执行。<strong>Claude Code</strong>才是真正的Agent——它会自己规划、执行、纠错、循环，直到任务完成，不需要你每步确认。
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ CH7：套餐定价逻辑 ═══════════════════════ -->
+<section class="chapter" id="ch7" style="--ch-color: var(--orange)">
+  <div class="scroll-reveal">
+    <div class="ch-num">07</div>
+    <div class="ch-label" style="color:var(--orange)">定价逻辑</div>
+    <h2>为什么有<em>免费/Pro/Enterprise</em></h2>
+    <p class="body-text">套餐分级不是任意的——背后有成本结构在驱动。每次AI运算都在消耗GPU算力，而GPU算力是真实的、昂贵的资源。</p>
+    <p class="body-text">点击展开，看每个套餐背后的逻辑：</p>
+
+    <div class="pricing-tiers">
+      <div class="tier" style="--tier-color:var(--muted)" onclick="toggleTier(this)">
+        <div class="tier-header">
+          <div class="tier-name" style="color:var(--muted)">Free 免费版</div>
+          <div class="tier-price">$0/月</div>
+        </div>
+        <div class="tier-body">
+          使用较小或较老的模型，严格限流（每天几十条消息），上下文窗口更短，无优先级——高峰期要排队。<br>
+          <div class="tier-why">为什么免费：拉用户、收集反馈、未来转化付费——同时限制成本。</div>
+        </div>
+      </div>
+      <div class="tier" style="--tier-color:var(--orange)" onclick="toggleTier(this)">
+        <div class="tier-header">
+          <div class="tier-name" style="color:var(--orange)">Pro 专业版</div>
+          <div class="tier-price">$20/月</div>
+        </div>
+        <div class="tier-body">
+          最强模型（Sonnet/Opus），更高限流，更长上下文，优先排队，解锁更多工具（联网、代码执行、文件处理），Extended Thinking功能。<br>
+          <div class="tier-why">为什么$20：Anthropic测算过每用户平均Token消耗，$20基本能覆盖成本并略有利润。</div>
+        </div>
+      </div>
+      <div class="tier" style="--tier-color:var(--blue)" onclick="toggleTier(this)">
+        <div class="tier-header">
+          <div class="tier-name" style="color:var(--blue)">Team 团队版</div>
+          <div class="tier-price">$25/人/月</div>
+        </div>
+        <div class="tier-body">
+          多人协作，对话不用于训练（数据隔离），更高用量，管理后台控制成员权限，Projects共享。<br>
+          <div class="tier-why">企业愿意多付：数据不被训练这一条就值很多钱，尤其对有合规要求的公司。</div>
+        </div>
+      </div>
+      <div class="tier" style="--tier-color:var(--purple)" onclick="toggleTier(this)">
+        <div class="tier-header">
+          <div class="tier-name" style="color:var(--purple)">Enterprise 企业版</div>
+          <div class="tier-price">合同定价</div>
+        </div>
+        <div class="tier-body">
+          自定义系统提示词、SSO/SAML登录集成、审计日志、更强数据隔离承诺、SLA（服务级别协议）、专属客户经理。<br>
+          <div class="tier-why">这不是卖"更多消息"，而是卖<strong>合规保障、定制化、企业IT集成、责任背书</strong>——这些才是大公司真正愿意付钱的东西。</div>
+        </div>
+      </div>
+      <div class="tier" style="--tier-color:var(--green)" onclick="toggleTier(this)">
+        <div class="tier-header">
+          <div class="tier-name" style="color:var(--green)">API 开发者</div>
+          <div class="tier-price">按Token付费</div>
+        </div>
+        <div class="tier-body">
+          没有月费，完全按用量付费。适合用量不稳定的开发者、需要API集成的产品、想精确控制成本的场景。一开始免费试用额度，用完后充值。<br>
+          <div class="tier-why">你支付的是纯算力成本。Anthropic的利润来自"规模化后边际成本下降"。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ CH8：一家AI公司的生意 ═══════════════════════ -->
+<section class="chapter" id="ch8" style="--ch-color: var(--pink)">
+  <div class="scroll-reveal">
+    <div class="ch-num">08</div>
+    <div class="ch-label" style="color:var(--pink)">商业地图</div>
+    <h2>一家AI公司<em>做几门生意</em></h2>
+    <p class="body-text">很多人以为AI公司只是"训练模型然后收费"。实际上它在同时运营多个完全不同的商业层——点击每个节点展开：</p>
+
+    <div class="biz-map">
+      <div class="biz-layer">
+        <div class="biz-layer-label">↑ 基础设施层</div>
+        <div class="biz-nodes">
+          <div class="biz-node" style="--node-color:var(--red)" onclick="toggleBiz(this,'biz-train')">
+            <div class="biz-node-icon">⚗️</div>
+            <div class="biz-node-name">模型训练</div>
+            <div class="biz-node-tag">成本中心</div>
+          </div>
+          <div class="biz-node" style="--node-color:var(--orange)" onclick="toggleBiz(this,'biz-infer')">
+            <div class="biz-node-icon">⚡</div>
+            <div class="biz-node-name">推理基础设施</div>
+            <div class="biz-node-tag">运营成本</div>
+          </div>
+        </div>
+        <div class="biz-detail" id="biz-train">
+          <strong>训练（Training）</strong>：用海量数据在成千上万张GPU上训练模型，花费数月、数亿美元。这是纯成本，不直接产生收入，但决定了产品竞争力。<br><br>
+          一旦训练完成，模型权重就固定了（除非再次训练）。这就是为什么模型有"知识截止日期"。
+        </div>
+        <div class="biz-detail" id="biz-infer">
+          <strong>推理（Inference）</strong>：每次有用户发消息，都要在GPU集群上跑一次模型运算。这是持续的运营成本，随用户量线性增长。<br><br>
+          Anthropic要养活庞大的服务器集群，保证全球用户的低延迟——这是最大的日常支出之一。
+        </div>
+      </div>
+
+      <div class="biz-layer">
+        <div class="biz-layer-label">↕ 分发层</div>
+        <div class="biz-nodes">
+          <div class="biz-node" style="--node-color:var(--green)" onclick="toggleBiz(this,'biz-api')">
+            <div class="biz-node-icon">🔌</div>
+            <div class="biz-node-name">API</div>
+            <div class="biz-node-tag">开发者</div>
+          </div>
+          <div class="biz-node" style="--node-color:var(--teal)" onclick="toggleBiz(this,'biz-cloud')">
+            <div class="biz-node-icon">☁️</div>
+            <div class="biz-node-name">云平台分销</div>
+            <div class="biz-node-tag">批发渠道</div>
+          </div>
+        </div>
+        <div class="biz-detail" id="biz-api">
+          <strong>直接API</strong>：开发者申请Key，调用模型，按Token付费。门槛低，适合个人开发者和初创公司。<br><br>
+          这既是收入来源，也是生态建设——越多人基于Claude API构建产品，生态越强，护城河越深。
+        </div>
+        <div class="biz-detail" id="biz-cloud">
+          <strong>云平台分销</strong>：Anthropic把Claude授权给AWS（Bedrock）、Google Cloud（Vertex）、Azure等云平台，让企业可以在自己已有的云基础设施里直接调用。<br><br>
+          这是批发逻辑——云厂商帮Anthropic触达它触达不到的企业客户，云厂商从中赚取差价或服务费。
+        </div>
+      </div>
+
+      <div class="biz-layer">
+        <div class="biz-layer-label">↓ 产品层</div>
+        <div class="biz-nodes">
+          <div class="biz-node" style="--node-color:var(--amber)" onclick="toggleBiz(this,'biz-2c')">
+            <div class="biz-node-icon">💬</div>
+            <div class="biz-node-name">2C产品</div>
+            <div class="biz-node-tag">claude.ai</div>
+          </div>
+          <div class="biz-node" style="--node-color:var(--blue)" onclick="toggleBiz(this,'biz-2b')">
+            <div class="biz-node-icon">🏢</div>
+            <div class="biz-node-name">2B企业版</div>
+            <div class="biz-node-tag">Team/Enterprise</div>
+          </div>
+        </div>
+        <div class="biz-detail" id="biz-2c">
+          <strong>2C（To Consumer，面向消费者）</strong>：claude.ai这样的产品，直接卖给个人用户。订阅制，月费可预期，用户数量大但单价低。<br><br>
+          Claude Code这样的开发者工具也算2C延伸——面向个人开发者，不是企业合同。
+        </div>
+        <div class="biz-detail" id="biz-2b">
+          <strong>2B（To Business，面向企业）</strong>：Team/Enterprise套餐，或通过API的批量合同。单价高、合同周期长、客单价大——一个企业客户可能顶几千个个人用户。<br><br>
+          企业不只买"AI能力"，还买数据安全承诺、合规认证、技术支持、SLA保障——这些才是2B定价高的原因。
+        </div>
+      </div>
+    </div>
+
+    <div class="aha">
+      <div class="aha-label">收入来源总结</div>
+      同一个模型，通过<strong>API直连、云平台分销、2C订阅、2B合同</strong>四条路同时赚钱。训练是成本，推理是成本，产品和分发是变现手段。
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ CH9：Tools / Function Calling ═══════════════════════ -->
+<section class="chapter" id="ch9" style="--ch-color: var(--teal)">
+  <div class="scroll-reveal">
+    <div class="ch-num">09</div>
+    <div class="ch-label" style="color:var(--teal)">工具调用</div>
+    <h2>AI 如何<em>连接真实世界</em></h2>
+    <p class="body-text">原始LLM只能接收文字、输出文字——它不能搜索网页、不能查天气、不能访问数据库、不能执行代码。它被困在训练数据里。</p>
+    <p class="body-text"><strong>Tools（工具调用 / Function Calling）</strong>打破了这个限制。</p>
+
+    <div class="aha">
+      <div class="aha-label">工作原理</div>
+      你告诉AI："你有一个工具叫<code>search_web</code>，需要的时候你可以调它。"<br><br>
+      当AI判断需要搜索时，它不是直接搜索——<strong>它输出一个结构化的"调用请求"</strong>，你的程序读到这个请求、真正去搜索、把结果返回给AI、AI再继续回答。<br><br>
+      AI本体从未离开"文字进出"的模式——是你的程序在帮它执行真实动作。
+    </div>
+
+    <div class="code-block"><span class="comment">// AI决定要搜索时，它的"输出"长这样：</span>
+{
+  <span class="key">"type"</span>: <span class="str">"tool_use"</span>,
+  <span class="key">"name"</span>: <span class="str">"search_web"</span>,
+  <span class="key">"input"</span>: {
+    <span class="key">"query"</span>: <span class="str">"今日上证指数"</span>
+  }
+}
+
+<span class="comment">// 你的程序收到这个，去真正搜索，再把结果发回：</span>
+{
+  <span class="key">"role"</span>: <span class="str">"tool"</span>,
+  <span class="key">"content"</span>: <span class="str">"上证指数今日收于3124.5点，涨0.8%"</span>
+}
+
+<span class="comment">// AI拿到结果，继续生成回答</span></div>
+
+    <p class="body-text">claude.ai的联网搜索、代码执行、文件分析——都是这个原理。只不过Anthropic帮你实现了这些工具，并接入了产品里。<strong>你用API也可以自己接入任何工具</strong>——这就是定制化AI的基础。</p>
+
+    <div class="aha">
+      <div class="aha-label">可以接入哪些工具</div>
+      任何可以用代码调用的东西：搜索引擎、数据库、发邮件、发Slack消息、查股价、控制智能家居、调用另一个API……工具边界等于你代码能做到什么的边界。
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ CH10：Agent ═══════════════════════ -->
+<section class="chapter" id="ch10" style="--ch-color: var(--orange)">
+  <div class="scroll-reveal">
+    <div class="ch-num">10</div>
+    <div class="ch-label" style="color:var(--orange)">Agent 智能体</div>
+    <h2>AI 从<em>回答问题</em><br>到<em>完成任务</em></h2>
+    <p class="body-text">普通AI：你问，它答。一来一回。你要驱动每一步。</p>
+    <p class="body-text">Agent：你给一个目标，它自己制定计划、调用工具、执行步骤、根据结果调整、循环直到完成——<strong>你只需要等结果</strong>。</p>
+    <p class="body-text">这是质变，不是量变。模拟一个真实Agent的执行过程：</p>
+
+    <div class="agent-demo">
+      <div class="agent-task">任务：帮我研究竞争对手A公司，总结他们最新的产品动态</div>
+      <div class="agent-steps" id="agent-steps"></div>
+      <button class="agent-btn" id="agent-btn" onclick="stepAgent()">▶ 开始执行</button>
+    </div>
+
+    <div class="aha">
+      <div class="aha-label">Agent的核心：循环</div>
+      Agent不是"调用一次AI"，而是一个循环：<br><br>
+      <strong>规划 → 行动 → 观察结果 → 重新规划 → 再行动 → ……</strong><br><br>
+      每一轮循环都是一次完整的API调用。一个复杂任务可能循环几十次。这就是为什么Agent比普通聊天贵得多——它消耗的Token是普通对话的几十倍。
+    </div>
+
+    <p class="body-text"><strong>Claude Code</strong>是目前最典型的Agent产品——你给一个编程任务，它自己读代码、写代码、执行测试、修复错误、循环直到任务完成。你可以去做别的事，回来看结果。</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════ CH11：自己动手 ═══════════════════════ -->
+<section class="chapter" id="ch11" style="--ch-color: var(--teal)">
+  <div class="scroll-reveal">
+    <div class="ch-num">11</div>
+    <div class="ch-label" style="color:var(--teal)">动手路线图</div>
+    <h2>如果你想<em>自己做一个</em></h2>
+    <p class="body-text">理解了所有概念，现在你知道：做一个AI聊天产品，本质是把API包装成界面。做一个Agent，本质是给AI接上工具和循环。都不需要任何机器学习知识。</p>
+
+    <div class="roadmap">
+      <div class="road-step">
+        <div class="road-num">1</div>
+        <div class="road-content">
+          <div class="road-title">获取API Key</div>
+          <div class="road-desc">去 console.anthropic.com 注册，创建API Key。有免费额度，无需绑卡即可开始。这是你和模型之间的"通行证"。</div>
+          <div class="road-time">5分钟</div>
+        </div>
+      </div>
+      <div class="road-step">
+        <div class="road-num">2</div>
+        <div class="road-content">
+          <div class="road-title">发第一个请求</div>
+          <div class="road-desc">用10行代码（JavaScript或Python）发一条消息给Claude，收到回答。这就是最小可运行单元——恭喜你，你已经"用了AI"。</div>
+          <div class="road-time">30分钟</div>
+        </div>
+      </div>
+      <div class="road-step">
+        <div class="road-num">3</div>
+        <div class="road-content">
+          <div class="road-title">加上对话历史</div>
+          <div class="road-desc">把之前的消息存进数组，每次请求一起发送——AI就有了"记忆"。这就是所有聊天产品的核心机制，代码不超过20行。</div>
+          <div class="road-time">1小时</div>
+        </div>
+      </div>
+      <div class="road-step">
+        <div class="road-num">4</div>
+        <div class="road-content">
+          <div class="road-title">加上System Prompt</div>
+          <div class="road-desc">在消息数组最前面加一条 role:"system" 的消息，写上你想要的AI角色和行为规则。你的产品就有了"个性"。</div>
+          <div class="road-time">30分钟</div>
+        </div>
+      </div>
+      <div class="road-step">
+        <div class="road-num">5</div>
+        <div class="road-content">
+          <div class="road-title">包装成网页界面</div>
+          <div class="road-desc">用HTML+CSS做一个输入框和消息列表，把上面的逻辑接进去——你就有了自己的聊天界面。这就是claude.ai的最简版本。</div>
+          <div class="road-time">半天</div>
+        </div>
+      </div>
+      <div class="road-step">
+        <div class="road-num">6</div>
+        <div class="road-content">
+          <div class="road-title">接入一个工具</div>
+          <div class="road-desc">定义一个工具（比如"搜索网络"），在AI的响应里检测工具调用，执行真正的搜索，把结果塞回消息历史，循环——你就有了联网AI。</div>
+          <div class="road-time">1-2天</div>
+        </div>
+      </div>
+      <div class="road-step">
+        <div class="road-num">7</div>
+        <div class="road-content">
+          <div class="road-title">加上循环 = Agent</div>
+          <div class="road-desc">让步骤6的工具调用在一个while循环里运行，直到AI不再调用工具、返回最终答案。你就有了一个基础Agent。</div>
+          <div class="road-time">1-2天</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="aha">
+      <div class="aha-label">关键认知</div>
+      你不需要懂机器学习、不需要GPU、不需要训练任何东西。你只需要懂<strong>发HTTP请求 + 管理一个消息数组</strong>——这是任何一个会写代码的人都能做到的事。AI的门槛，比你想象的低得多。
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ FOOTER ═══════════════════════ -->
+<footer>
+  <div class="big">顿悟了吗？</div>
+  <p>从训练到推理，从Token到Agent<br>你按下发送的那一刻，背后是这一切</p>
+  <div style="height:20px"></div>
+  <p style="color:var(--dim)">— AI STACK · 完全指南 · 2025 —</p>
+</footer>
+
+<script>
+// ─── NAV SETUP ───
+const chapters = ['cover','ch0','ch1','ch2','ch3','ch4','ch5','ch6','ch7','ch8','ch9','ch10','ch11'];
+const dotsEl = document.getElementById('nav-dots');
+chapters.forEach((id,i) => {
+  const d = document.createElement('div');
+  d.className = 'nav-dot';
+  d.onclick = () => document.getElementById(id).scrollIntoView({behavior:'smooth'});
+  dotsEl.appendChild(d);
+});
+
+// ─── SCROLL LOGIC ───
+window.addEventListener('scroll', () => {
+  const prog = (window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100;
+  document.getElementById('progress-bar').style.width = prog + '%';
+
+  const dots = document.querySelectorAll('.nav-dot');
+  let active = 0;
+  chapters.forEach((id,i) => {
+    const el = document.getElementById(id);
+    if (el && el.getBoundingClientRect().top <= 120) active = i;
+  });
+  dots.forEach((d,i) => d.classList.toggle('active', i === active));
+
+  document.querySelectorAll('.scroll-reveal').forEach(el => {
+    if (el.getBoundingClientRect().top < window.innerHeight * 0.9) el.classList.add('visible');
+  });
+});
+
+// init scroll reveal
+setTimeout(() => {
+  document.querySelectorAll('.scroll-reveal').forEach(el => {
+    if (el.getBoundingClientRect().top < window.innerHeight) el.classList.add('visible');
+  });
+}, 100);
+
+// ─── FLOW DEMO ───
+const flowSteps = [
+  { node: 0, desc: '你在手机上输入消息，点击发送' },
+  { node: 1, arr: 0, desc: '消息被打包成 JSON 格式，通过 HTTPS 加密发送' },
+  { node: 2, arr: 1, desc: 'Anthropic 的服务器收到请求，验证你的身份和套餐权限' },
+  { node: 3, arr: 2, desc: 'GPU 集群开始运行模型，把你的文字变成概率分布，逐个Token生成回答' },
+  { node: 4, arr: 3, desc: '回答以数据流的形式逐字返回到你的屏幕——这就是为什么它一个字一个字出现' },
+];
+let flowIdx = -1;
+function stepFlow() {
+  flowIdx++;
+  if (flowIdx >= flowSteps.length) { flowIdx = -1; resetFlow(); return; }
+  const step = flowSteps[flowIdx];
+  document.querySelectorAll('.flow-node').forEach((n,i) => n.classList.toggle('active', i <= step.node));
+  document.querySelectorAll('.flow-arrow').forEach((a,i) => a.classList.toggle('active', step.arr !== undefined && i <= step.arr));
+  document.getElementById('flow-desc').textContent = step.desc;
+  const btn = document.getElementById('flow-btn');
+  btn.textContent = flowIdx === flowSteps.length - 1 ? '↺ 重新开始' : '▶ 下一步';
+}
+function resetFlow() {
+  document.querySelectorAll('.flow-node').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.flow-arrow').forEach(a => a.classList.remove('active'));
+  document.getElementById('flow-desc').textContent = '点击下方按钮，一步步看发生了什么';
+  document.getElementById('flow-btn').textContent = '▶ 开始';
+}
+
+// ─── TOKEN COUNTER ───
+function estimateTokens(text) {
+  if (!text) return 0;
+  // rough: English ~4 chars/token, CJK ~1.5 chars/token
+  let count = 0;
+  for (const ch of text) {
+    if (/[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]/.test(ch)) count += 0.67;
+    else if (/\s/.test(ch)) count += 0.25;
+    else count += 0.25;
+  }
+  return Math.max(1, Math.round(count + text.length * 0.15));
+}
+function tokenize(text) {
+  if (!text.trim()) return [];
+  const words = text.split(/(\s+|[，。！？、；：""''【】（）,.\!?;:\[\](){}\n]+)/);
+  return words.filter(w => w && w.trim());
+}
+function updateTokens() {
+  const text = document.getElementById('token-input').value;
+  const t = estimateTokens(text);
+  document.getElementById('tok-count').textContent = t;
+  const cost = (t * 3 / 1000000).toFixed(5);
+  document.getElementById('tok-cost').textContent = '$' + (cost < 0.00001 ? '<0.00001' : cost);
+  const pct = Math.min(100, (t / 200000 * 100)).toFixed(2);
+  document.getElementById('tok-ctx').textContent = pct + '%';
+  const visual = document.getElementById('token-visual');
+  const chunks = tokenize(text).slice(0, 30);
+  visual.innerHTML = chunks.map(w => `<span class="token-chip">${w.trim() || '·'}</span>`).join('') +
+    (text.length > 100 ? '<span style="color:var(--muted);font-size:11px;align-self:center">…</span>' : '');
+}
+
+// ─── MEMORY DEMO ───
+const memConvos = [
+  { role:'user', content:'你好，我叫小明', tokens: 12 },
+  { role:'ai', content:'你好小明！有什么可以帮你的？', tokens: 18 },
+  { role:'user', content:'我在学Python，能推荐入门资料吗', tokens: 20 },
+  { role:'ai', content:'当然！推荐《Python编程》和官方文档，还有哦…', tokens: 45 },
+  { role:'user', content:'上面提到的官方文档是哪个网址？', tokens: 18 },
+  { role:'ai', content:'是 python.org/docs，覆盖了语法、标准库等所有内容', tokens: 30 },
+  { role:'user', content:'好的，另外你还记得我叫什么名字吗', tokens: 20 },
+  { role:'ai', content:'记得，你叫小明！有什么关于Python的问题都可以问我', tokens: 28 },
+];
+let memIdx = 0;
+let memShown = [];
+function addMemMsg() {
+  if (memIdx >= memConvos.length) return;
+  memShown.push(memConvos[memIdx++]);
+  renderMem();
+}
+function resetMem() { memIdx = 0; memShown = []; renderMem(); }
+function renderMem() {
+  const tl = document.getElementById('mem-timeline');
+  tl.innerHTML = memShown.map(m => `
+    <div class="mem-msg">
+      <div class="mem-role ${m.role}">${m.role==='user'?'你':'AI'}</div>
+      <div class="mem-content">${m.content}</div>
+    </div>`).join('');
+  const totalTok = memShown.reduce((a,m) => a+m.tokens, 0);
+  document.getElementById('mem-turn').textContent = Math.ceil(memShown.length / 2);
+  document.getElementById('mem-size').textContent = totalTok + ' tokens';
+  document.getElementById('mem-sub').textContent = memShown.length === 0
+    ? '点击添加消息，看数据怎么增长'
+    : `每次发第 ${Math.ceil(memShown.length/2)} 轮消息时，把以上 ${memShown.length} 条历史全部打包重发`;
+}
+renderMem();
+
+// ─── SYSTEM PROMPT TABS ───
+function switchTab(btn, targetId) {
+  document.querySelectorAll('.sysprompt-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.sysprompt-content').forEach(c => c.classList.add('hidden'));
+  btn.classList.add('active');
+  document.getElementById(targetId).classList.remove('hidden');
+}
+
+// ─── PRICING TIERS ───
+function toggleTier(el) {
+  const wasActive = el.classList.contains('active');
+  document.querySelectorAll('.tier').forEach(t => t.classList.remove('active'));
+  if (!wasActive) el.classList.add('active');
+}
+
+// ─── BIZ MAP ───
+function toggleBiz(node, detailId) {
+  const wasActive = node.classList.contains('active');
+  document.querySelectorAll('.biz-node').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.biz-detail').forEach(d => d.classList.remove('show'));
+  if (!wasActive) {
+    node.classList.add('active');
+    document.getElementById(detailId).classList.add('show');
+  }
+}
+
+// ─── AGENT STEPPER ───
+const agentStepData = [
+  { icon:'🎯', name:'PLAN', desc:'分析任务：需要搜索A公司官网、新闻、产品页', output:'→ 制定3步搜索计划' },
+  { icon:'🔍', name:'TOOL: search', desc:'调用搜索工具：query = "A公司 最新产品 2025"', output:'→ 返回10条搜索结果' },
+  { icon:'📖', name:'TOOL: read_page', desc:'读取A公司官网产品页，提取关键信息', output:'→ 获取产品列表和更新日期' },
+  { icon:'📰', name:'TOOL: search', desc:'调用搜索工具：query = "A公司 发布 新闻"', output:'→ 返回5篇新闻报道' },
+  { icon:'🧠', name:'SYNTHESIZE', desc:'综合所有信息，判断是否需要更多数据', output:'→ 信息充分，开始撰写总结' },
+  { icon:'✍️', name:'OUTPUT', desc:'生成结构化分析报告，包含产品动态和关键变化', output:'→ 报告完成，任务结束 ✓' },
+];
+let agentIdx = 0;
+function renderAgentSteps() {
+  const container = document.getElementById('agent-steps');
+  container.innerHTML = agentStepData.map((s,i) => `
+    <div class="agent-step" id="ast-${i}">
+      <div class="agent-step-icon">${s.icon}</div>
+      <div class="agent-step-content">
+        <div class="agent-step-name">${s.name}</div>
+        <div class="agent-step-desc">${s.desc}</div>
+        <div class="agent-step-output">${s.output}</div>
+      </div>
+    </div>`).join('');
+}
+renderAgentSteps();
+function stepAgent() {
+  if (agentIdx >= agentStepData.length) {
+    agentIdx = 0;
+    document.querySelectorAll('[id^=ast-]').forEach(s => { s.classList.remove('done','active'); });
+    document.getElementById('agent-btn').textContent = '▶ 开始执行';
+    return;
+  }
+  if (agentIdx > 0) {
+    const prev = document.getElementById(`ast-${agentIdx-1}`);
+    prev.classList.remove('active'); prev.classList.add('done');
+  }
+  const cur = document.getElementById(`ast-${agentIdx}`);
+  cur.classList.add('active');
+  cur.scrollIntoView({behavior:'smooth', block:'nearest'});
+  agentIdx++;
+  const btn = document.getElementById('agent-btn');
+  btn.textContent = agentIdx >= agentStepData.length ? '↺ 重置' : `▶ 下一步 (${agentIdx}/${agentStepData.length})`;
+  if (agentIdx === agentStepData.length) {
+    setTimeout(() => {
+      document.getElementById(`ast-${agentIdx-1}`).classList.remove('active');
+      document.getElementById(`ast-${agentIdx-1}`).classList.add('done');
+    }, 800);
+  }
+}
+</script>
+</body>
+</html>
